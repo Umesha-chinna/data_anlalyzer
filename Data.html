@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Plotline: chart bot</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #eef1f5;
+        --panel: #fff;
+        --ink: #16202e;
+        --mute: #5b6878;
+        --line: #d9dfe7;
+        --acc: #2f5bea;
+        --on: #fff;
+        --warn: #a8480f;
+        --grid: #e4e8ee;
+        box-sizing: border-box;
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --bg: #0f1620;
+          --panel: #171f2b;
+          --ink: #e8edf4;
+          --mute: #93a0b2;
+          --line: #2a3444;
+          --acc: #6c8cff;
+          --on: #0f1620;
+          --warn: #f0a263;
+          --grid: #263041;
+        }
+      }
+
+      :root[data-theme="dark"] {
+        --bg: #0f1620;
+        --panel: #171f2b;
+        --ink: #e8edf4;
+        --mute: #93a0b2;
+        --line: #2a3444;
+        --acc: #6c8cff;
+        --on: #0f1620;
+        --warn: #f0a263;
+        --grid: #263041;
+      }
+
+      html {
+        scroll-padding-top: env(safe-area-inset-top, 0px);
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: inherit;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 15px/1.5 "Schibsted Grotesk", system-ui, sans-serif;
+      }
+
+      .app {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px 16px 40px;
+      }
+
+      header h1 {
+        font-size: 26px;
+        margin: 0;
+        letter-spacing: -0.02em;
+      }
+
+      header p {
+        margin: 4px 0 20px;
+        color: var(--mute);
+        max-width: 60ch;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+      }
+
+      @media (max-width: 900px) {
+        main {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+
+      h2 {
+        font-size: 15px;
+        margin: 0 0 10px;
+      }
+
+      textarea,
+      input:not([type="checkbox"]):not([type="color"]),
+      select {
+        width: 100%;
+        font: inherit;
+        color: var(--ink);
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 8px 10px;
+      }
+
+      textarea {
+        resize: vertical;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 13px;
+      }
+
+      button {
+        font: inherit;
+        cursor: pointer;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink);
+        border-radius: 8px;
+        padding: 7px 12px;
+      }
+
+      button.pri {
+        background: var(--acc);
+        color: var(--on);
+        border-color: var(--acc);
+        font-weight: 600;
+      }
+
+      :focus-visible {
+        outline: 2px solid var(--acc);
+        outline-offset: 2px;
+      }
+
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+        align-items: center;
+      }
+
+      .row > input:not([type="checkbox"]):not([type="color"]) {
+        flex: 1;
+        min-width: 0;
+        width: auto;
+      }
+
+      label {
+        display: block;
+        font-size: 13px;
+        color: var(--mute);
+        margin-top: 10px;
+      }
+
+      label input:not([type="checkbox"]):not([type="color"]),
+      label select {
+        margin-top: 4px;
+      }
+
+      .two {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .seg {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        margin-bottom: 4px;
+      }
+
+      .seg button[aria-pressed="true"] {
+        background: var(--acc);
+        color: var(--on);
+        border-color: var(--acc);
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 4px;
+      }
+
+      .chips label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0;
+        padding: 4px 8px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--ink);
+      }
+
+      .chips input[type="color"] {
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border: 0;
+        background: none;
+      }
+
+      .chk {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        align-self: end;
+      }
+
+      .cv {
+        position: relative;
+        height: 420px;
+        margin-top: 8px;
+      }
+
+      @media (max-width: 600px) {
+        .cv {
+          height: 320px;
+        }
+      }
+
+      ul {
+        margin: 0 0 14px;
+        padding-left: 18px;
+      }
+
+      li {
+        margin: 4px 0;
+      }
+
+      .mute {
+        color: var(--mute);
+        font-size: 13px;
+        margin: 0;
+      }
+
+      .err {
+        color: var(--warn);
+        margin: 8px 0 0;
+        font-size: 13px;
+      }
+
+      .tg {
+        position: fixed;
+        left: 50%;
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        transform: translateX(-50%);
+        background: var(--ink);
+        color: var(--bg);
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        max-width: 90%;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>Plotline</h1>
+        <p>
+          Paste, upload or describe your data. Plotline picks a chart that
+          fits, says what it sees, and never fills in gaps. Everything runs
+          in your browser.
+        </p>
+      </header>
+
+      <main>
+        <aside>
+          <section class="card">
+            <h2>Your data</h2>
+            <textarea
+              id="src"
+              rows="7"
+              aria-label="Data"
+              placeholder="Paste a table, CSV or JSON, or type numbers like: Jan 120, Feb 135, Mar 98"
+            ></textarea>
+            <div class="row">
+              <button class="pri" id="go">Build chart</button>
+              <button id="up">Upload file</button>
+              <button id="smp">Try sample</button>
+              <input
+                type="file"
+                id="file"
+                hidden
+                accept=".csv,.tsv,.txt,.json,.xlsx,.xls"
+              />
+            </div>
+            <p id="err" class="err" role="alert"></p>
+          </section>
+
+          <section class="card" id="ctl" hidden>
+            <h2>Ask for a change</h2>
+            <div class="row" style="margin-top: 0">
+              <input
+                id="cmd"
+                aria-label="Instruction"
+                placeholder='"make this a bar chart", "show only 2025"'
+              />
+              <button id="ask">Apply</button>
+            </div>
+            <p id="reply" class="mute" aria-live="polite" style="margin: 8px 0 16px"></p>
+
+            <h2>Customize</h2>
+            <div id="types" class="seg"></div>
+            <label>
+              X axis
+              <select id="xs"></select>
+            </label>
+            <div style="margin-top: 10px">
+              <span class="mute">Y values</span>
+              <div id="ys" class="chips"></div>
+            </div>
+            <label>
+              Title
+              <input id="ttl" />
+            </label>
+            <div class="two">
+              <label>
+                X label
+                <input id="xl" />
+              </label>
+              <label>
+                Y label
+                <input id="yl" />
+              </label>
+            </div>
+            <div class="two">
+              <label>
+                Palette
+                <select id="pal"></select>
+              </label>
+              <label class="chk">
+                <input type="checkbox" id="lg" checked /> Show legend
+              </label>
+            </div>
+          </section>
+        </aside>
+
+        <section>
+          <div class="card" id="empty">
+            <h2>Start with your data</h2>
+            <p class="mute">
+              Paste a table, CSV or JSON, upload a CSV, Excel or JSON file,
+              or type numbers in plain language. Plotline finds the columns,
+              picks a chart, and points out trends and outliers. Missing values
+              stay missing.
+            </p>
+          </div>
+
+          <div id="res" hidden>
+            <div class="card">
+              <p id="why" class="mute"></p>
+              <div class="cv">
+                <canvas id="cv" role="img" aria-label="Chart"></canvas>
+              </div>
+              <div class="row" id="exp">
+                <span class="mute">Export</span>
+                <button data-k="png">PNG</button>
+                <button data-k="svg">SVG</button>
+                <button data-k="pdf">PDF</button>
+                <button data-k="csv">CSV</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h2>What this shows</h2>
+              <ul id="sum"></ul>
+              <h2>Data checks</h2>
+              <ul id="chk"></ul>
+              <p id="cols" class="mute"></p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="tg" id="tg" hidden role="status"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const P={Studio:["#2F5BEA","#E8833A","#1E9E8A","#8B5CF6","#D6455D","#6B7A8F","#C9A227","#3B9AE1"],Cool:["#1D4E89","#00B2CA","#7DCFB6","#5E60CE","#4EA8DE","#2A9D8F","#3A0CA3","#48BFE3"],Warm:["#C8553D","#F28F3B","#F5CB5C","#8C2F39","#B08968","#E76F51","#6D597A","#E9C46A"],Mono:["#1B2A41","#324A5F","#546A7B","#7C8FA0","#A5B4C2","#C5D0DA","#0C1821","#8D99AE"]};
+const T=[['bar','Bar'],['stacked','Stacked'],['line','Line'],['area','Area'],['pie','Pie'],['scatter','Scatter']];
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fm=n=>new Intl.NumberFormat('en',{maximumFractionDigits:2}).format(n);
+let S={rows:[],cols:[],cfg:null,rec:null,f:{col:'',text:'',top:0,sort:''}},ch=null;
+const num=v=>{if(typeof v==='number')return isFinite(v)?v:NaN;if(typeof v!=='string')return NaN;const t=v.trim().replace(/^\((.*)\)$/,'-$1').replace(/[$€£₹,\s]/g,'').replace(/%$/,'');return /^-?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(t)?parseFloat(t):NaN};
+const miss=v=>v==null||/^(|na|n\/a|null|none|nan|-|--|\?)$/i.test(String(v).trim());
+const MON='(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*';
+const isDt=v=>{const t=String(v).trim();return /^\d{4}[-\/]\d{1,2}([-\/]\d{1,2})?$/.test(t)||/^\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}$/.test(t)||new RegExp('^'+MON+'([\\s\\-\']*\\d{2,4})?$','i').test(t)||/^Q[1-4]([\s\-']*\d{2,4})?$/i.test(t)||/^\d{4}\s*Q[1-4]$/i.test(t)};
+const dk=(c,v)=>c.yr?num(v):Date.parse(v);
+const say=(m)=>$('#err').textContent=m||'';
+let tt;const toast=m=>{const e=$('#tg');e.textContent=m;e.hidden=false;clearTimeout(tt);tt=setTimeout(()=>e.hidden=true,3200)};
+
+/* ---------- parsing ---------- */
+function fromJSON(j){
+ if(Array.isArray(j)){if(j.length&&Array.isArray(j[0])){const h=j[0].map(String);return j.slice(1).map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]])))}
+  if(j.length&&typeof j[0]=='object'&&j[0]!==null)return j;return j.map((v,i)=>({Item:'#'+(i+1),Value:v}))}
+ if(j&&typeof j=='object'){const v=Object.values(j);
+  if(v.length&&v.every(Array.isArray)){const n=Math.max(...v.map(a=>a.length)),k=Object.keys(j);return Array.from({length:n},(_,i)=>Object.fromEntries(k.map(c=>[c,j[c][i]])))}
+  if(v.every(x=>typeof x!='object'||x===null))return Object.entries(j).map(([k,x])=>({Label:k,Value:x}));
+  const a=v.find(Array.isArray);if(a)return fromJSON(a)}
+ throw Error('That JSON is not a table I can chart. Use an array of objects or an object of arrays.')}
+function parse(t){t=t.trim();if(!t)throw Error('Paste or upload some data first.');
+ let j;try{j=JSON.parse(t)}catch(e){}if(j!==undefined&&typeof j=='object')return fromJSON(j);
+ const nl=()=>{const r=[];t.split(/;|\n|,(?!\d{3}\b)|\s+and\s+/i).forEach(s=>{const m=s.trim().match(/^(.*?\S)[\s:=\-–]+[$€£₹]?(-?[\d.,]*\d)\s*%?$/);if(m)r.push({Label:m[1],Value:m[2]})});return r};
+ if(!/\n/.test(t)){const r=nl();if(r.length>=2)return r}
+ let c=t;if(/^[^\n]*\|/.test(t))c=t.split('\n').filter(l=>!/^[\s|:\-]+$/.test(l)).map(l=>l.replace(/^\s*\||\|\s*$/g,'')).join('\n');
+ const p=Papa.parse(c,{header:true,skipEmptyLines:'greedy',transformHeader:h=>h.trim(),transform:v=>v.trim()}),f=p.meta.fields||[];
+ if(f.length<2){const r=nl();if(r.length>=2)return r}
+ if(f.length<2||!p.data.length)throw Error('I could not read a table from that. Include a header row and at least one row of values, or type pairs like "Jan 120, Feb 135".');
+ return p.data}
+
+/* ---------- analysis ---------- */
+function inspect(){const names=Object.keys(S.rows[0]);S.cols=names.map(name=>{const raw=S.rows.map(r=>r[name]),nm=raw.filter(v=>!miss(v)),n=nm.length,nn=nm.filter(v=>!isNaN(num(v))).length;let type='cat',yr=false;
+ if(n&&nn/n>=.8){type='num';if(/year|yr|fy/i.test(name)&&nm.every(v=>Number.isInteger(num(v))&&num(v)>1899&&num(v)<2101)){type='date';yr=true}}
+ else if(n&&nm.filter(isDt).length/n>=.8)type='date';
+ return{name,type,yr,sortable:type=='date'&&(yr||nm.every(v=>isFinite(Date.parse(v)))),missing:raw.length-n,invalid:type=='num'?n-nn:0}})}
+function auto(){const c=S.cols,nums=c.filter(k=>k.type=='num'),dt=c.find(k=>k.type=='date'),ct=c.find(k=>k.type=='cat'),x=dt||ct;let ys,type,why;
+ if(x){ys=nums.slice(0,6);if(!ys.length)return null;
+  const cnt=new Set(S.rows.map(r=>r[x.name])).size,vals=S.rows.map(r=>num(r[ys[0].name])).filter(v=>!isNaN(v)),sum=vals.reduce((a,b)=>a+b,0);
+  const nonneg=ys.every(y=>S.rows.every(r=>!(num(r[y.name])<0)));
+  if(dt){type='line';why='The first column is a time sequence, so a line shows how values change.'}
+  else if(ys.length==1&&cnt<=6&&nonneg&&(/share|percent|pct|%|proportion/i.test(ys[0].name)||Math.abs(sum-100)<1.5)){type='pie';why='A few categories that add up to a whole, so a pie shows each share.'}
+  else if(ys.length>=3&&nonneg&&cnt<=12){type='stacked';why='Several non-negative series per category, so stacked bars show totals and composition. Switch to Bar to compare series directly.'}
+  else{type='bar';why='Comparing values across categories, so bars are the easiest to read.'}
+ }else if(nums.length>=2){x=nums[0];ys=[nums[1]];type='scatter';why='Two numeric columns and no category or date, so a scatter plot shows how they relate.'}
+ else return null;
+ return{x:x.name,ys:ys.map(y=>y.name),type,wh};
+ 
