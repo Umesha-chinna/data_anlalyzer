@@ -13,15 +13,16 @@
     />
     <style>
       :root {
-        --bg: #eef1f5;
-        --panel: #fff;
-        --ink: #16202e;
-        --mute: #5b6878;
-        --line: #d9dfe7;
-        --acc: #2f5bea;
-        --on: #fff;
-        --warn: #a8480f;
-        --grid: #e4e8ee;
+        --bg: #0b1118;
+        --panel: #131d28;
+        --ink: #e8edf4;
+        --mute: #a1adbc;
+        --line: #2a3747;
+        --acc: #6c8cff;
+        --on: #0f1620;
+        --warn: #ffad78;
+        --grid: #314052;
+        color-scheme: dark;
         box-sizing: border-box;
         padding-top: env(safe-area-inset-top, 0px);
         padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -283,7 +284,7 @@
       }
     </style>
   </head>
-  <body>
+  <body >
     <div class="app">
       <header>
         <h1>Plotline</h1>
@@ -414,7 +415,7 @@ const P={Studio:["#2F5BEA","#E8833A","#1E9E8A","#8B5CF6","#D6455D","#6B7A8F","#C
 const T=[['bar','Bar'],['stacked','Stacked'],['line','Line'],['area','Area'],['pie','Pie'],['scatter','Scatter']];
 const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fm=n=>new Intl.NumberFormat('en',{maximumFractionDigits:2}).format(n);
-let S={rows:[],cols:[],cfg:null,rec:null,f:{col:'',text:'',top:0,sort:''}},ch=null;
+let S={rows:[],cols:[],cfg:null,rec:null,filterText:'',f:{col:'',text:'',top:0,sort:''}},ch=null;
 const num=v=>{if(typeof v==='number')return isFinite(v)?v:NaN;if(typeof v!=='string')return NaN;const t=v.trim().replace(/^\((.*)\)$/,'-$1').replace(/[$€£₹,\s]/g,'').replace(/%$/,'');return /^-?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(t)?parseFloat(t):NaN};
 const miss=v=>v==null||/^(|na|n\/a|null|none|nan|-|--|\?)$/i.test(String(v).trim());
 const MON='(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*';
@@ -457,5 +458,201 @@ function auto(){const c=S.cols,nums=c.filter(k=>k.type=='num'),dt=c.find(k=>k.ty
   else{type='bar';why='Comparing values across categories, so bars are the easiest to read.'}
  }else if(nums.length>=2){x=nums[0];ys=[nums[1]];type='scatter';why='Two numeric columns and no category or date, so a scatter plot shows how they relate.'}
  else return null;
- return{x:x.name,ys:ys.map(y=>y.name),type,wh};
- 
+ return{x:x.name,ys:ys.map(y=>y.name),type,why};
+}
+
+function normalizeRows(rows){
+ if(!Array.isArray(rows))throw Error('The file does not contain a table.');
+ const records=rows.filter(row=>row&&typeof row==='object'&&!Array.isArray(row));
+ if(!records.length)throw Error('The file does not contain any data rows.');
+ const names=[...new Set(records.flatMap(row=>Object.keys(row)))].map((name,index)=>String(name||`Column ${index+1}`).trim()||`Column ${index+1}`);
+ if(names.length<2)throw Error('Include at least two columns: one label column and one values column.');
+ const result=records.map(row=>Object.fromEntries(names.map(name=>[name,row[name]??''])))
+  .filter(row=>Object.values(row).some(value=>!miss(value)));
+ if(!result.length)throw Error('The file contains headers but no data rows.');
+ return result;
+}
+
+function rowsFromText(text,delimiter){
+ if(!window.Papa)throw Error('The data parser did not load. Check your internet connection and reload the page.');
+ if(delimiter){
+  const parsed=Papa.parse(text,{header:true,delimiter,skipEmptyLines:'greedy',transformHeader:header=>header.trim(),transform:value=>value.trim()});
+  if(parsed.errors.some(error=>error.type==='Delimiter'))throw Error('I could not detect the columns in this file.');
+  return normalizeRows(parsed.data);
+ }
+ return normalizeRows(parse(text));
+}
+
+async function rowsFromFile(file){
+ const name=file.name.toLowerCase(),extension=name.split('.').pop();
+ if(['xlsx','xls'].includes(extension)){
+  if(!window.XLSX)throw Error('The Excel reader did not load. Check your internet connection and reload the page.');
+  const workbook=XLSX.read(await file.arrayBuffer(),{type:'array'});
+  const sheet=workbook.Sheets[workbook.SheetNames[0]];
+  if(!sheet)throw Error('This Excel file has no worksheets.');
+  return normalizeRows(fromJSON(XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',raw:false})));
+ }
+ const text=await file.text();
+ if(extension==='json')return normalizeRows(fromJSON(JSON.parse(text)));
+ if(extension==='tsv')return rowsFromText(text,'\t');
+ if(['csv','txt'].includes(extension))return rowsFromText(text);
+ throw Error('Choose a CSV, TSV, TXT, JSON, XLS, or XLSX file.');
+}
+
+function makeConfig(recommendation){
+ return{x:recommendation.x,ys:recommendation.ys,type:recommendation.type,title:'',xLabel:recommendation.x,yLabel:'',palette:'Studio',legend:true};
+}
+
+function fillControls(){
+ const config=S.cfg;
+ $('#types').innerHTML=T.map(([value,label])=>`<button type="button" data-type="${value}" aria-pressed="${config.type===value}">${label}</button>`).join('');
+ $('#types').querySelectorAll('button').forEach(button=>button.addEventListener('click',()=>{config.type=button.dataset.type;fillControls();drawChart()}));
+ $('#xs').innerHTML=S.cols.map(column=>`<option value="${esc(column.name)}">${esc(column.name)}</option>`).join('');
+ $('#xs').value=config.x;
+ $('#xs').onchange=()=>{config.x=$('#xs').value;drawChart()};
+ $('#ys').innerHTML=S.cols.filter(column=>column.type==='num').map(column=>`<label><input type="checkbox" value="${esc(column.name)}" ${config.ys.includes(column.name)?'checked':''}>${esc(column.name)}</label>`).join('');
+ $('#ys').querySelectorAll('input').forEach(input=>input.addEventListener('change',()=>{
+  config.ys=[...$('#ys').querySelectorAll('input:checked')].map(item=>item.value);
+  drawChart();
+ }));
+ $('#pal').innerHTML=Object.keys(P).map(name=>`<option value="${name}">${name}</option>`).join('');
+ $('#pal').value=config.palette;
+ $('#pal').onchange=()=>{config.palette=$('#pal').value;drawChart()};
+ $('#ttl').value=config.title;
+ $('#ttl').oninput=()=>{config.title=$('#ttl').value;drawChart()};
+ $('#xl').value=config.xLabel;
+ $('#xl').oninput=()=>{config.xLabel=$('#xl').value;drawChart()};
+ $('#yl').value=config.yLabel;
+ $('#yl').oninput=()=>{config.yLabel=$('#yl').value;drawChart()};
+ $('#lg').checked=config.legend;
+ $('#lg').onchange=()=>{config.legend=$('#lg').checked;drawChart()};
+}
+
+function visibleRows(){
+ if(!S.filterText)return S.rows;
+ const query=S.filterText.toLowerCase();
+ return S.rows.filter(row=>Object.values(row).some(value=>String(value??'').toLowerCase().includes(query)));
+}
+
+function drawChart(){
+ if(!window.Chart)throw Error('The chart library did not load. Check your internet connection and reload the page.');
+ if(ch){ch.destroy();ch=null}
+ const config=S.cfg;
+ if(!config.ys.length)throw Error('Select at least one numeric column for the chart.');
+ const rows=visibleRows();
+ const colors=P[config.palette]||P.Studio;
+ const type=config.type==='stacked'?'bar':config.type==='area'?'line':config.type;
+ let data;
+ if(config.type==='scatter'){
+  const xColumn=S.cols.find(column=>column.name===config.x);
+  if(!xColumn||xColumn.type!=='num')throw Error('Scatter charts need a numeric X axis. Choose one in the X axis menu.');
+  data={datasets:config.ys.map((name,index)=>({label:name,data:rows.map(row=>({x:num(row[config.x]),y:num(row[name])})).filter(point=>isFinite(point.x)&&isFinite(point.y)),backgroundColor:colors[index%colors.length]}))};
+ }else{
+  const labels=rows.map(row=>String(row[config.x]??''));
+  const series=config.type==='pie'?config.ys.slice(0,1):config.ys;
+  data={labels,datasets:series.map((name,index)=>({label:name,data:rows.map(row=>miss(row[name])?null:num(row[name])),backgroundColor:config.type==='pie'?labels.map((_,item)=>colors[item%colors.length]):colors[index%colors.length],borderColor:colors[index%colors.length],borderWidth:2,tension:.25,fill:config.type==='area'}))};
+ }
+ const ink=getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();
+ const mute=getComputedStyle(document.documentElement).getPropertyValue('--mute').trim();
+ const grid=getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
+ const options={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:config.legend,labels:{color:mute}},title:{display:Boolean(config.title),text:config.title,color:ink}},scales:{}};
+ if(!['pie'].includes(config.type)){
+  options.scales={x:{title:{display:Boolean(config.xLabel),text:config.xLabel,color:mute},ticks:{color:mute},grid:{color:grid},stacked:config.type==='stacked'},y:{title:{display:Boolean(config.yLabel),text:config.yLabel,color:mute},ticks:{color:mute},grid:{color:grid},stacked:config.type==='stacked',beginAtZero:config.type==='bar'||config.type==='stacked'}};
+ }
+ ch=new Chart($('#cv'),{type,data,options});
+ say('');
+}
+
+function updateReport(recommendation){
+ const rows=visibleRows(),counts=rows.length;
+ const descriptions=[`${counts} data row${counts===1?'':'s'} across ${S.cols.length} columns.`];
+ if(recommendation)descriptions.push(recommendation.why);
+ if(S.filterText)descriptions.push(`Filtered to rows matching "${S.filterText}".`);
+ const selected=S.cfg.ys[0],values=selected?rows.map(row=>num(row[selected])).filter(Number.isFinite):[];
+ if(values.length){const high=Math.max(...values),low=Math.min(...values);descriptions.push(`${selected} ranges from ${fm(low)} to ${fm(high)}.`)}
+ $('#sum').replaceChildren(...descriptions.map(text=>{const item=document.createElement('li');item.textContent=text;return item}));
+ const warnings=[];
+ for(const column of S.cols){
+  if(column.missing)warnings.push(`${column.name}: ${column.missing} missing value${column.missing===1?'':'s'}.`);
+  if(column.invalid)warnings.push(`${column.name}: ${column.invalid} non-numeric value${column.invalid===1?'':'s'} ignored in charts.`);
+ }
+ if(!warnings.length)warnings.push('No missing or invalid values found.');
+ $('#chk').replaceChildren(...warnings.map(text=>{const item=document.createElement('li');item.textContent=text;return item}));
+ $('#cols').textContent=`Columns: ${S.cols.map(column=>`${column.name} (${column.type})`).join(', ')}`;
+ $('#why').textContent=recommendation?.why||'Chart generated from the selected columns.';
+}
+
+function loadRows(rows){
+ S.rows=normalizeRows(rows);
+ S.filterText='';
+ inspect();
+ const recommendation=auto();
+ if(!recommendation)throw Error('I could not find a category or date column and a numeric values column.');
+ S.rec=recommendation;
+ S.cfg=makeConfig(recommendation);
+ $('#empty').hidden=true;
+ $('#res').hidden=false;
+ $('#ctl').hidden=false;
+ fillControls();
+ updateReport(recommendation);
+ drawChart();
+}
+
+function download(name,content,type){
+ const url=URL.createObjectURL(new Blob([content],{type}));
+ const link=document.createElement('a');link.href=url;link.download=name;link.click();
+ URL.revokeObjectURL(url);
+}
+
+$('#up').addEventListener('click',()=>$('#file').click());
+$('#file').addEventListener('change',async event=>{
+ const file=event.target.files?.[0];
+ if(!file)return;
+ try{loadRows(await rowsFromFile(file));toast(`Loaded ${file.name}`)}
+ catch(error){say(error.message||'I could not read that file.')}
+ finally{event.target.value=''}
+});
+$('#go').addEventListener('click',()=>{try{loadRows(parse($('#src').value))}catch(error){say(error.message||'I could not read that data.')}});
+$('#src').addEventListener('keydown',event=>{if(event.ctrlKey&&event.key==='Enter')$('#go').click()});
+$('#smp').addEventListener('click',()=>{
+  $('#src').value='Month,Visitors,Signups\nJan,120,24\nFeb,155,31\nMar,138,29\nApr,192,42\nMay,176,39';
+  $('#go').click();
+});
+$('#ask').addEventListener('click',()=>{
+ const request=$('#cmd').value.trim().toLowerCase();
+ if(!request){$('#reply').textContent='Enter a chart change first.';return}
+ if(!S.cfg){$('#reply').textContent='Build a chart from data before applying changes.';return}
+ const requested=[...T].sort((a,b)=>b[0].length-a[0].length).find(([value,label])=>new RegExp(`\\b(?:${value}|${label.toLowerCase()})\\b`).test(request));
+ const filterMatch=request.match(/(?:show|keep)\s+only\s+(.+)$|filter\s+(?:to|only)\s+(.+)$|^only\s+(.+)$/);
+ const clearFilter=/\b(?:show all|all data|clear filter|reset filter)\b/.test(request);
+ const filterValue=filterMatch?.slice(1).find(Boolean)?.replace(/^['"]|['"]$/g,'').replace(/[.!?]+$/,'').trim();
+ if(!requested&&!filterValue&&!clearFilter){$('#reply').textContent='Try a chart type, "show only 2025", or "show all".';return}
+ const nextFilter=clearFilter?'':filterValue||S.filterText;
+ const matchingRows=nextFilter?S.rows.filter(row=>Object.values(row).some(value=>String(value??'').toLowerCase().includes(nextFilter.toLowerCase()))):S.rows;
+ if(!matchingRows.length){$('#reply').textContent=`No rows match "${nextFilter}". The chart was not changed.`;return}
+ const changes=[];
+ if(requested){S.cfg.type=requested[0];changes.push(`Changed to ${requested[1]} chart`)}
+ if(filterValue){S.filterText=filterValue;changes.push(`Showing ${matchingRows.length} matching row${matchingRows.length===1?'':'s'}`)}
+ if(clearFilter){S.filterText='';changes.push(`Showing all ${S.rows.length} rows`)}
+ fillControls();
+ updateReport(S.rec);
+ drawChart();
+ $('#reply').textContent=`${changes.join('. ')}.`;
+});
+$('#exp').addEventListener('click',event=>{
+ const kind=event.target.dataset.k;
+ if(!kind||!ch)return;
+ try{
+  if(kind==='png')download('plotline-chart.png',ch.toBase64Image().split(',')[1]&&Uint8Array.from(atob(ch.toBase64Image().split(',')[1]),char=>char.charCodeAt(0)), 'image/png');
+  else if(kind==='csv')download('plotline-data.csv',Papa.unparse(visibleRows()),'text/csv;charset=utf-8');
+  else if(kind==='svg')download('plotline-chart.svg',`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${ch.width} ${ch.height}"><image width="100%" height="100%" href="${ch.toBase64Image()}"/></svg>`,'image/svg+xml');
+  else if(kind==='pdf'){
+   if(!window.jspdf)throw Error('The PDF exporter did not load.');
+   const pdf=new jspdf.jsPDF({orientation:ch.width>ch.height?'landscape':'portrait'});
+   pdf.addImage(ch.toBase64Image(),'PNG',10,10,190,Math.min(260,190*ch.height/ch.width));pdf.save('plotline-chart.pdf');
+  }
+ }catch(error){say(error.message||'Export failed.')}
+});
+</script>
+</body>
+</html>
